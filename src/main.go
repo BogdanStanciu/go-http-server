@@ -48,7 +48,7 @@ func handleRequestLine(request string) (string, error) {
 		return "HTTP/1.1 404 Not Found\r\n\r\n", nil
 	}
 
-	return execRouteHandler(handler, requestParts[1]), nil
+	return execRouteHandler(handler, request), nil
 
 }
 
@@ -75,6 +75,8 @@ func main() {
 	log.Println("Logs from your program will appear here!")
 
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
+	log.Println("Server listing on 4221")
+
 	var con net.Conn
 
 	if err != nil {
