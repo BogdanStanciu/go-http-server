@@ -10,6 +10,11 @@ import (
 	"strings"
 )
 
+type Server struct {
+	listener net.Listener
+	router   *routing.Router
+}
+
 func execRouteHandler(handler *http.RouteHandlerFunction, requestTarget string) string {
 	result := (*handler)(requestTarget)
 
@@ -28,14 +33,13 @@ func execRouteHandler(handler *http.RouteHandlerFunction, requestTarget string) 
 	response = strings.Replace(response, "{ContentLength}", fmt.Sprintf("%d", len(result.Body)), 1)
 
 	return response
-
 }
 
 // A request-line begins with a method token
 // followed by a single space (SP)
 // the request-target, and another single space (SP)
 // and ends with the protocol version
-func handleRequestLine(request string) (string, error) {
+func (server Server) handleRequestLine(request string) (string, error) {
 
 	// split line by SP
 	requestParts := strings.Split(request, " ")
@@ -43,16 +47,17 @@ func handleRequestLine(request string) (string, error) {
 		return "HTTP/1.1 404 Not Found\r\n\r\n", nil
 	}
 
-	handler, err := routing.Route(requestParts[1])
+	handler, err := server.router.Route(requestParts[1])
+
+	// handler, err := routing.Route(requestParts[1])
 	if err != nil {
 		return "HTTP/1.1 404 Not Found\r\n\r\n", nil
 	}
 
 	return execRouteHandler(handler, request), nil
-
 }
 
-func handleConnection(con net.Conn) {
+func (server Server) handleConnection(con net.Conn) {
 	defer con.Close()
 	req := make([]byte, 1024)
 	_, err := con.Read(req)
@@ -61,43 +66,44 @@ func handleConnection(con net.Conn) {
 		con.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
 	}
 
-	response, err := handleRequestLine(string(req))
+	response, err := server.handleRequestLine(string(req))
 
 	if err != nil {
 		con.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
 	}
 
 	con.Write([]byte(response))
+}
 
+// Init a new server
+func (server *Server) init() {
+	l, err := net.Listen("tcp", "0.0.0.0:4221")
+	log.Println("[Server] Server listing on 4221")
+
+	if err != nil {
+		os.Exit(1)
+	}
+	server.listener = l
+	server.router = routing.New()
 }
 
 func main() {
-	log.Println("Logs from your program will appear here!")
+	log.Printf("[Server] Logs from your program will appear here!\n")
 
-	l, err := net.Listen("tcp", "0.0.0.0:4221")
-	log.Println("Server listing on 4221")
-
-	var con net.Conn
-
-	if err != nil {
-		log.Println("Failed to bind to port 4221")
-		os.Exit(1)
-	}
+	var server Server
+	server.init()
 
 	defer func() {
-		con.Close()
-		l.Close()
+		server.listener.Close()
 	}()
 
 	for {
-		con, err := l.Accept()
-		log.Printf("Accept conntion from %s\n", con.LocalAddr().String())
+		con, err := server.listener.Accept()
+
 		if err != nil {
-			log.Println("Error accepting connection: ", err.Error())
+			log.Fatalln("[Server] Error accepting connection: ", err.Error())
 			os.Exit(1)
-
 		}
-		go handleConnection(con)
+		go server.handleConnection(con)
 	}
-
 }

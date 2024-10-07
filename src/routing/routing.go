@@ -9,11 +9,18 @@ import (
 	"strings"
 )
 
-var routingTable = map[string]http.RouteHandlerFunction{
-	"^/$":             func(req string) http.HttpResponse { return http.HttpResponse{StatusCode: 200, Body: ""} },
-	"^/[a-zA-Z0-9]*$": func(req string) http.HttpResponse { return http.HttpResponse{StatusCode: 200, Body: ""} },
-	"^/echo/[a-zA-Z0-9]+$": func(req string) http.HttpResponse {
+type Router struct {
+	tree *Node
+}
 
+func New() *Router {
+	router := Router{}
+	router.tree = InitTree()
+
+	// add routes
+	router.tree.AddNode(strings.Split("", "/")[:1], func(req string) http.HttpResponse { return http.HttpResponse{StatusCode: 200, Body: ""} })
+	router.tree.AddNode(strings.Split("/hello", "/")[1:], func(req string) http.HttpResponse { return http.HttpResponse{StatusCode: 200, Body: ""} })
+	router.tree.AddNode(strings.Split("/echo/*", "/")[1:], func(req string) http.HttpResponse {
 		pattern := "/[a-zA-Z0-9]+$"
 		re, err := regexp.Compile(pattern)
 
@@ -27,8 +34,9 @@ var routingTable = map[string]http.RouteHandlerFunction{
 			return http.HttpResponse{StatusCode: 200, Body: strings.ReplaceAll(matches[0], "/", "")}
 		}
 		return http.HttpResponse{StatusCode: 400, Body: ""}
-	},
-	"^/file/[a-zA-Z0-9]+$": func(req string) http.HttpResponse {
+	})
+
+	router.tree.AddNode(strings.Split("/file/*", "/")[1:], func(req string) http.HttpResponse {
 		pattern := "/[a-zA-Z0-9]+$"
 		re, err := regexp.Compile(pattern)
 
@@ -53,19 +61,20 @@ var routingTable = map[string]http.RouteHandlerFunction{
 		}
 
 		return http.HttpResponse{StatusCode: 200, Body: string(data)}
-	},
+	})
+
+	router.tree.PrintTree("")
+	return &router
+
 }
 
-// Handle the routing for the given request path
-// to the handler function
-func Route(requestTarget string) (*http.RouteHandlerFunction, error) {
-	for pattern, value := range routingTable {
-		match, _ := regexp.MatchString(pattern, requestTarget)
-		if match {
-			log.Printf("Route found for %s\n", requestTarget)
-			return &value, nil
-		}
+func (router *Router) Route(request string) (*http.RouteHandlerFunction, error) {
+	path := strings.Split(request, "/")
+	node := router.tree.Search(path[1:])
+
+	if node == nil || !node.IsLeaf {
+		return nil, errors.New("no route found")
 	}
-	log.Printf("No route found for %s\n", requestTarget)
-	return nil, errors.New("no route found")
+
+	return &node.Handler, nil
 }
