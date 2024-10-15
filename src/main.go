@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -76,9 +77,9 @@ func (server Server) handleConnection(con net.Conn) {
 }
 
 // Init a new server
-func (server *Server) init() {
-	l, err := net.Listen("tcp", "0.0.0.0:4221")
-	log.Println("[Server] Server listing on 4221")
+func (server *Server) init(port uint16) {
+	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
+	log.Printf("[Server] Server listing on %s\n", fmt.Sprintf("%d", port))
 
 	if err != nil {
 		os.Exit(1)
@@ -88,10 +89,20 @@ func (server *Server) init() {
 }
 
 func main() {
+	args := os.Args
+	if len(args[1:]) < 1 {
+		log.Fatal("Please provide a port")
+	}
+	port, err := strconv.ParseInt(args[1], 10, 16)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	log.Printf("[Server] Logs from your program will appear here!\n")
 
 	var server Server
-	server.init()
+	server.init(uint16(port))
 
 	defer func() {
 		server.listener.Close()
