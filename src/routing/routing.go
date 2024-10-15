@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+type RouteHandlerFunction func(request string) http.HttpResponse
+
 type Router struct {
 	tree *Node
 }
@@ -68,7 +70,7 @@ func New() *Router {
 
 }
 
-func (router *Router) Route(request string) (*http.RouteHandlerFunction, error) {
+func (router *Router) Route(request string) (*RouteHandlerFunction, error) {
 	path := strings.Split(request, "/")
 	node := router.tree.Search(path[1:])
 

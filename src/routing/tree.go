@@ -2,7 +2,6 @@ package routing
 
 import (
 	"fmt"
-	"go-http-server/src/http"
 	"log"
 )
 
@@ -10,7 +9,7 @@ type Node struct {
 	Name    string
 	Child   []*Node
 	IsLeaf  bool
-	Handler http.RouteHandlerFunction
+	Handler RouteHandlerFunction
 }
 
 // Init a empty tree
@@ -19,7 +18,7 @@ func InitTree() *Node {
 }
 
 // Add a node in the tree.
-func (tree *Node) AddNode(path []string, handler http.RouteHandlerFunction) {
+func (tree *Node) AddNode(path []string, handler RouteHandlerFunction) {
 	if len(path) > 0 {
 		var i int
 		for i = 0; i < len(tree.Child); i++ {
