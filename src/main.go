@@ -16,8 +16,8 @@ type Server struct {
 	router   *routing.Router
 }
 
-func execRouteHandler(handler *routing.RouteHandlerFunction, requestTarget string) string {
-	result := (*handler)(requestTarget)
+func execRouteHandler(handler *routing.RouteHandlerFunction, request http.HttpRequest) string {
+	result := (*handler)(request)
 
 	var message = ""
 	if result.StatusCode == 200 {
@@ -36,19 +36,18 @@ func execRouteHandler(handler *routing.RouteHandlerFunction, requestTarget strin
 	return response
 }
 
-// A request-line begins with a method token
-// followed by a single space (SP)
-// the request-target, and another single space (SP)
-// and ends with the protocol version
-func (server Server) handleRequestLine(request string) (string, error) {
+/*
+For this first version the server will handle only GET request.
+This function check if the incoming request is a GET and if the route exits
+then exec the associated handler
+*/
+func (server Server) handleRequestLine(request http.HttpRequest) (string, error) {
 
-	// split line by SP
-	requestParts := strings.Split(request, " ")
-	if requestParts[0] != "GET" {
+	if request.Method != "GET" {
 		return "HTTP/1.1 404 Not Found\r\n\r\n", nil
 	}
 
-	handler, err := server.router.Route(requestParts[1])
+	handler, err := server.router.Route(request.Url)
 
 	if err != nil {
 		return "HTTP/1.1 404 Not Found\r\n\r\n", nil
@@ -57,19 +56,35 @@ func (server Server) handleRequestLine(request string) (string, error) {
 	return execRouteHandler(handler, request), nil
 }
 
+/*
+Handle the init of the connection and ready the incoming bytes.
+After read all the incoming request will try to parse as a HTTP 1.1 request
+then will handle the request, else will reponde with 400
+*/
 func (server Server) handleConnection(con net.Conn) {
 	defer con.Close()
-	req := make([]byte, 1024)
-	_, err := con.Read(req)
 
-	if err != nil {
+	// TODO: what if the request > 1024 ?
+	req := make([]byte, 1024)
+	n, err := con.Read(req)
+
+	if err != nil || n == 0 {
 		con.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
+		return
 	}
 
-	response, err := server.handleRequestLine(string(req))
+	httpRequest, err := http.HttpParser(string(req))
 
 	if err != nil {
 		con.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
+		return
+	}
+
+	response, err := server.handleRequestLine(httpRequest)
+
+	if err != nil {
+		con.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
+		return
 	}
 
 	con.Write([]byte(response))
