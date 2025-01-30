@@ -64,9 +64,14 @@ then will handle the request, else will reponde with 400
 func (server Server) handleConnection(con net.Conn) {
 	defer con.Close()
 
-	// TODO: what if the request > 1024 ?
-	req := make([]byte, 1024)
+	// handle requests of 1mb
+	req := make([]byte, 100)
 	n, err := con.Read(req)
+
+	if n == 1024*1024 {
+		con.Write([]byte("HTTP/1.1 413 Content Too Large\r\n\r\n"))
+		return
+	}
 
 	if err != nil || n == 0 {
 		con.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
