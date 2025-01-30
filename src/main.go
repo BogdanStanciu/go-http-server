@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"strings"
 )
 
 type Server struct {
@@ -16,32 +15,12 @@ type Server struct {
 	router   *routing.Router
 }
 
-func execRouteHandler(handler *routing.RouteHandlerFunction, request http.HttpRequest) string {
-	result := (*handler)(request)
-
-	var message = ""
-	if result.StatusCode == 200 {
-		message = "OK"
-	} else {
-		message = "Bad Request"
-	}
-
-	response := http.HttpResponseTemplate
-	response = strings.Replace(response, "{body}", result.Body, 1)
-	response = strings.Replace(response, "{statusCode}", fmt.Sprintf("%d", result.StatusCode), 1)
-	response = strings.Replace(response, "{message}", message, 1)
-	// calculate Content-Length
-	response = strings.Replace(response, "{ContentLength}", fmt.Sprintf("%d", len(result.Body)), 1)
-
-	return response
-}
-
 /*
 For this first version the server will handle only GET request.
 This function check if the incoming request is a GET and if the route exits
 then exec the associated handler
 */
-func (server Server) handleRequestLine(request http.HttpRequest) (string, error) {
+func (server Server) execRouteHandler(request *http.HttpRequest) (string, error) {
 
 	if request.Method != "GET" {
 		return "HTTP/1.1 404 Not Found\r\n\r\n", nil
@@ -53,7 +32,19 @@ func (server Server) handleRequestLine(request http.HttpRequest) (string, error)
 		return "HTTP/1.1 404 Not Found\r\n\r\n", nil
 	}
 
-	return execRouteHandler(handler, request), nil
+	result := (*handler)(request)
+
+	result.Headers["Content-Length"] = fmt.Sprintf("%d", len(result.Body))
+
+	// in this point  we have to gzip ?
+
+	res, err := http.HttpConverter(result)
+
+	if err != nil {
+		return "HTTP/1.1 400 Bad Request\r\n\r\n\r\n", nil
+	}
+
+	return res, nil
 }
 
 /*
@@ -85,7 +76,7 @@ func (server Server) handleConnection(con net.Conn) {
 		return
 	}
 
-	response, err := server.handleRequestLine(httpRequest)
+	response, err := server.execRouteHandler(httpRequest)
 
 	if err != nil {
 		con.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))

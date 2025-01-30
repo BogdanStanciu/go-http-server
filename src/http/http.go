@@ -3,12 +3,14 @@ package http
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"strings"
 )
 
 type HttpResponse struct {
 	StatusCode uint16
 	Body       string
+	Headers    map[string]string
 }
 
 type HttpRequest struct {
@@ -19,23 +21,28 @@ type HttpRequest struct {
 	Query   string // Everything after ? or mapping to a map ?
 }
 
-var HttpResponseTemplate string = "HTTP/1.1 {statusCode} {message}\r\nContent-Type: text/plain\r\nContent-Length: {ContentLength}\r\n\r\n{body}"
+func NewHttpResponse() *HttpResponse {
+	f := HttpResponse{StatusCode: 0, Body: "", Headers: make(map[string]string)}
+	return &f
+}
+func NewHttpRequest() *HttpRequest {
+	f := HttpRequest{Method: "GET", Url: "", Headers: make(map[string]string), Body: "", Query: ""}
+	return &f
+}
 
 /*
 This function will take a raw request and parse it
 following the HTTP 1.1 standard, if the request
 will not respect the standard will return an error
 */
-func HttpParser(rawRequest string) (HttpRequest, error) {
-	// read line by line
-	// first line is request path and uri
-	// method SP request-target SP HTTP-version
+func HttpParser(rawRequest string) (*HttpRequest, error) {
 
 	if len(rawRequest) == 0 {
-		return HttpRequest{}, errors.New("empty http request")
+		return NewHttpRequest(), errors.New("empty http request")
 	}
 
-	var request HttpRequest
+	request := NewHttpRequest()
+
 	request.Headers = make(map[string]string)
 
 	scanner := bufio.NewScanner(strings.NewReader(rawRequest))
@@ -63,4 +70,20 @@ func HttpParser(rawRequest string) (HttpRequest, error) {
 
 	return request, nil
 
+}
+
+/*
+This function converts an HTTP response struct
+into a properly formatted HTTP response string.
+It follows the standard HTTP/1.1 format.
+*/
+func HttpConverter(request *HttpResponse) (string, error) {
+	response := fmt.Sprintf("HTTP/1.1 %d OK \n", request.StatusCode)
+
+	for key, value := range request.Headers {
+		response = response + fmt.Sprintf("%s: %s\n", key, value)
+	}
+
+	response = response + fmt.Sprintf("\n%s", request.Body)
+	return response, nil
 }
