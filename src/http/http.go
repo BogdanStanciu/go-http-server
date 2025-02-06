@@ -42,7 +42,6 @@ func HttpParser(rawRequest string) (*HttpRequest, error) {
 	}
 
 	request := NewHttpRequest()
-
 	request.Headers = make(map[string]string)
 
 	scanner := bufio.NewScanner(strings.NewReader(rawRequest))

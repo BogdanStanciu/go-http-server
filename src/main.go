@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
 	"go-http-server/src/http"
 	"go-http-server/src/routing"
@@ -13,6 +15,26 @@ import (
 type Server struct {
 	listener net.Listener
 	router   *routing.Router
+}
+
+/*
+Compress data with gzip encoding
+*/
+func compress(data string) (string, error) {
+	var buf bytes.Buffer
+	compressor := gzip.NewWriter(&buf)
+
+	_, err := compressor.Write([]byte(data))
+
+	if err != nil {
+		return "", err
+	}
+
+	if err := compressor.Close(); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
 }
 
 /*
@@ -34,9 +56,11 @@ func (server Server) execRouteHandler(request *http.HttpRequest) (string, error)
 
 	result := (*handler)(request)
 
-	result.Headers["Content-Length"] = fmt.Sprintf("%d", len(result.Body))
-
-	// in this point  we have to gzip ?
+	if request.Headers["Accept-Encoding"] != "" {
+		result.Body, _ = compress(result.Body)
+		result.Headers["Content-Length"] = fmt.Sprintf("%d", len(result.Body))
+		result.Headers["Content-Encoding"] = "gzip"
+	}
 
 	res, err := http.HttpConverter(result)
 
@@ -56,7 +80,7 @@ func (server Server) handleConnection(con net.Conn) {
 	defer con.Close()
 
 	// handle requests of 1mb
-	req := make([]byte, 100)
+	req := make([]byte, 1024*1024)
 	n, err := con.Read(req)
 
 	if n == 1024*1024 {
@@ -86,7 +110,9 @@ func (server Server) handleConnection(con net.Conn) {
 	con.Write([]byte(response))
 }
 
-// Init a new server
+/*
+Init a new server listening to a given port
+*/
 func (server *Server) init(port uint16) {
 	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
 	log.Printf("[Server] Server listing on %s\n", fmt.Sprintf("%d", port))
